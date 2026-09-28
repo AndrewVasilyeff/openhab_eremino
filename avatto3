@@ -1,0 +1,17 @@
+        // Проверяем, было ли изменение на термостате
+        const thermoItem = items.getItem("Avatto_Thermostat_3_current_heating_setpoint");
+        const thermoState = safeFloat(thermoItem.state);
+        const thermoPersisted = safeFloat(
+            thermoItem.persistence.persistedState(time.now().minusSeconds(3), "rrd4j")?.numericState
+        );
+
+        if (items.getItem("T3AM").state.toString() === "online" &&
+            thermoState !== null && thermoPersisted !== null && thermoState !== thermoPersisted) {
+            // Изменение на термостате — синхронизируем в UI
+            ustavka = thermoState;
+            manualItem.sendCommand(ustavka.toString());
+        } else {
+            // Нет изменений — берём текущее значение из UI
+            ustavka = manualState;
+        }
+    }
