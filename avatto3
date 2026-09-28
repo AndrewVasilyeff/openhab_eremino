@@ -1,17 +1,39 @@
-        // Проверяем, было ли изменение на термостате
-        const thermoItem = items.getItem("Avatto_Thermostat_3_current_heating_setpoint");
-        const thermoState = safeFloat(thermoItem.state);
-        const thermoPersisted = safeFloat(
-            thermoItem.persistence.persistedState(time.now().minusSeconds(3), "rrd4j")?.numericState
-        );
+// Проверяем, было ли изменение на термостате
+const thermoItem = items.getItem("Avatto_Thermostat_3_current_heating_setpoint");
+const thermoState = safeFloat(thermoItem.state);
+const thermoPersisted = safeFloat(
+    thermoItem.persistence.persistedState(time.now().minusSeconds(3), "rrd4j")?.numericState
+);
 
-        if (items.getItem("T3AM").state.toString() === "online" &&
-            thermoState !== null && thermoPersisted !== null && thermoState !== thermoPersisted) {
-            // Изменение на термостате — синхронизируем в UI
-            ustavka = thermoState;
-            manualItem.sendCommand(ustavka.toString());
-        } else {
-            // Нет изменений — берём текущее значение из UI
-            ustavka = manualState;
-        }
-    }
+// Проверяем свежесть данных температуры от Avatto.
+// Если local_temperature обновлялась менее 3 минут назад,
+// считаем, что Avatto действительно работает и передаёт данные.
+const avattoTempItem = items.getItem("Avatto_Thermostat_3_local_temperature");
+const lastTempUpdate = avattoTempItem.lastStateUpdateTimestamp;
+
+let avattoTempFresh = false;
+
+if (lastTempUpdate !== null) {
+    avattoTempFresh = lastTempUpdate.isAfter(
+        time.now().minusMinutes(3)
+    );
+}
+
+if (items.getItem("T3AM").state.toString() === "online" &&
+    avattoTempFresh &&
+    thermoState !== null &&
+    thermoPersisted !== null &&
+    thermoState !== thermoPersisted) {
+
+    // Avatto ONLINE + недавно реально передавал температуру
+    // + его уставка изменилась.
+    // Считаем это нормальным изменением на физическом Avatto.
+    ustavka = thermoState;
+    manualItem.sendCommand(ustavka.toString());
+
+} else {
+    // Avatto OFFLINE, давно не передавал температуру
+    // или его уставка не изменялась.
+    // Используем manual как источник истины.
+    ustavka = manualState;
+}
